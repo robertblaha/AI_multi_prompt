@@ -4,6 +4,37 @@ import { useCallback } from "react";
 import { useStore } from "./useStore";
 import type { ChatMessage, StreamResponse } from "@/types";
 
+// Pricing cache for the session
+let pricingCache: Map<string, { promptPrice: number; completionPrice: number }> = new Map();
+
+// Fetch and cache pricing
+async function fetchPricing(): Promise<void> {
+  if (pricingCache.size > 0) return; // Already cached
+  
+  try {
+    const response = await fetch("/api/pricing");
+    if (response.ok) {
+      const data = await response.json();
+      pricingCache = new Map(Object.entries(data.models || {}));
+      console.log(`Cached pricing for ${pricingCache.size} models`);
+    }
+  } catch (error) {
+    console.error("Failed to fetch pricing:", error);
+  }
+}
+
+// Calculate cost for a model
+function calculateCost(
+  modelId: string,
+  promptTokens: number,
+  completionTokens: number
+): number {
+  const pricing = pricingCache.get(modelId);
+  if (!pricing) return 0;
+  
+  return (promptTokens * pricing.promptPrice) + (completionTokens * pricing.completionPrice);
+}
+
 // Helper function to create or get current session
 async function getOrCreateSession(
   apiKeyId: number | null,
@@ -177,6 +208,9 @@ export function useChat() {
       return;
     }
 
+    // Fetch pricing in background (don't wait)
+    fetchPricing();
+
     // Get the raw API key
     let apiKey: string;
     try {
@@ -217,6 +251,7 @@ export function useChat() {
     const startTime = Date.now();
     const threadIds: string[] = [];
     const dbThreadIds: number[] = [];
+    const threadModelIds: string[] = []; // Track model ID for each thread
 
     try {
       if (mode === "single_repeat") {
@@ -232,6 +267,7 @@ export function useChat() {
         for (let i = 1; i <= repeatCount; i++) {
           const threadId = `thread-${Date.now()}-${i}`;
           threadIds.push(threadId);
+          threadModelIds.push(selectedModelId);
           
           // Create thread in DB
           let dbThreadId: number;
@@ -281,9 +317,11 @@ export function useChat() {
         results.forEach((result, i) => {
           const threadId = threadIds[i];
           const dbThreadId = dbThreadIds[i];
+          const modelId = threadModelIds[i];
           if (result.status === "fulfilled" && result.value.success) {
             const { content, usage } = result.value.result;
             const latencyMs = Date.now() - startTime;
+            const cost = calculateCost(modelId, usage.prompt_tokens, usage.completion_tokens);
             const state = useStore.getState();
             const currentThread = state.threads.find((t) => t.id === threadId);
             if (currentThread && content) {
@@ -296,7 +334,7 @@ export function useChat() {
                 stats: {
                   inputTokens: usage.prompt_tokens,
                   outputTokens: usage.completion_tokens,
-                  cost: 0,
+                  cost,
                   latencyMs,
                 },
               });
@@ -309,7 +347,7 @@ export function useChat() {
                   content,
                   usage.prompt_tokens,
                   usage.completion_tokens,
-                  0, // cost will be calculated later
+                  cost,
                   latencyMs
                 ).catch((error) => {
                   console.error("Failed to save assistant message:", error);
@@ -348,6 +386,7 @@ export function useChat() {
           const modelName = model?.displayName || modelId;
           const threadId = `thread-${Date.now()}-${modelId}`;
           threadIds.push(threadId);
+          threadModelIds.push(modelId);
           
           // Create thread in DB
           let dbThreadId: number;
@@ -397,9 +436,11 @@ export function useChat() {
         results.forEach((result, i) => {
           const threadId = threadIds[i];
           const dbThreadId = dbThreadIds[i];
+          const modelId = threadModelIds[i];
           if (result.status === "fulfilled" && result.value.success) {
             const { content, usage } = result.value.result;
             const latencyMs = Date.now() - startTime;
+            const cost = calculateCost(modelId, usage.prompt_tokens, usage.completion_tokens);
             const state = useStore.getState();
             const currentThread = state.threads.find((t) => t.id === threadId);
             if (currentThread && content) {
@@ -412,7 +453,7 @@ export function useChat() {
                 stats: {
                   inputTokens: usage.prompt_tokens,
                   outputTokens: usage.completion_tokens,
-                  cost: 0,
+                  cost,
                   latencyMs,
                 },
               });
@@ -425,7 +466,7 @@ export function useChat() {
                   content,
                   usage.prompt_tokens,
                   usage.completion_tokens,
-                  0, // cost will be calculated later
+                  cost,
                   latencyMs
                 ).catch((error) => {
                   console.error("Failed to save assistant message:", error);
@@ -482,6 +523,9 @@ export function useChat() {
       const thread = state.threads.find((t) => t.id === threadId);
       if (!thread) return;
 
+      // Fetch pricing in background
+      fetchPricing();
+
       // Get the raw API key
       let apiKey: string;
       try {
@@ -528,6 +572,7 @@ export function useChat() {
         );
 
         const latencyMs = Date.now() - startTime;
+        const cost = calculateCost(thread.modelId, usage.prompt_tokens, usage.completion_tokens);
         const updatedThread = useStore.getState().threads.find(
           (t) => t.id === threadId
         );
@@ -543,7 +588,7 @@ export function useChat() {
                 updatedThread.stats.inputTokens + usage.prompt_tokens,
               outputTokens:
                 updatedThread.stats.outputTokens + usage.completion_tokens,
-              cost: updatedThread.stats.cost,
+              cost: updatedThread.stats.cost + cost,
               latencyMs: Math.round(
                 (updatedThread.stats.latencyMs + latencyMs) / 2
               ),
@@ -558,7 +603,7 @@ export function useChat() {
               content,
               usage.prompt_tokens,
               usage.completion_tokens,
-              0, // cost will be calculated later
+              cost,
               latencyMs
             ).catch((error) => {
               console.error("Failed to save assistant message:", error);
