@@ -448,10 +448,11 @@ export function Sidebar() {
                       <Button
                         variant="ghost"
                         size="icon"
-                        className="h-5 w-5 shrink-0"
+                        className="h-6 w-6 shrink-0 opacity-50 hover:opacity-100 hover:bg-destructive/10 hover:text-destructive"
                         onClick={(e) => handleDeleteSession(session.id, e)}
+                        title="Delete session"
                       >
-                        <X className="w-3 h-3" />
+                        <Trash2 className="w-3.5 h-3.5" />
                       </Button>
                     </div>
                   </div>

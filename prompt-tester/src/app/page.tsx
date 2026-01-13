@@ -1,6 +1,7 @@
 "use client";
 
 import { Sidebar } from "@/components/Sidebar";
+import { ResizableSidebar, useSidebarWidth } from "@/components/ResizableSidebar";
 import { ChatInput } from "@/components/chat/ChatInput";
 import { ChatThread } from "@/components/chat/ChatThread";
 import { Separator } from "@/components/ui/separator";
@@ -12,19 +13,23 @@ import { Badge } from "@/components/ui/badge";
 export default function Home() {
   const { isLoading, threads } = useStore();
   const hasLoadingThread = threads.some(t => t.isLoading);
+  const sidebarWidth = useSidebarWidth();
   
   // Initialize global keyboard shortcuts
   useKeyboardShortcuts();
 
   return (
     <div className="flex h-screen bg-background overflow-hidden">
-      {/* Fixed Sidebar */}
-      <div className="fixed left-0 top-0 bottom-0 w-72 z-10">
+      {/* Resizable Sidebar */}
+      <ResizableSidebar defaultWidth={288} minWidth={220} maxWidth={480}>
         <Sidebar />
-      </div>
+      </ResizableSidebar>
       
-      {/* Main Content Area with left margin for sidebar */}
-      <main className="flex-1 flex flex-col min-w-0 ml-72">
+      {/* Main Content Area with dynamic left margin for sidebar */}
+      <main 
+        className="flex-1 flex flex-col min-w-0 transition-[margin] duration-75"
+        style={{ marginLeft: sidebarWidth }}
+      >
         {/* Fixed Header */}
         <header className="h-14 border-b border-border flex items-center justify-between px-6 bg-card/30 shrink-0">
           <h2 className="font-medium">Chat</h2>
