@@ -57,7 +57,7 @@ export function ModeSelector() {
             <div className="ml-6 space-y-3">
               <div className="space-y-2">
                 <Label htmlFor="model-select" className="text-xs text-muted-foreground">
-                  Model
+                  Model (select from favorites)
                 </Label>
                 <Select value={selectedModelId || ""} onValueChange={setSelectedModelId}>
                   <SelectTrigger id="model-select" className="bg-background">
@@ -71,6 +71,29 @@ export function ModeSelector() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="custom-model" className="text-xs text-muted-foreground">
+                  Or enter custom model ID
+                </Label>
+                <Input
+                  id="custom-model"
+                  placeholder="e.g. anthropic/claude-3-opus"
+                  value={selectedModelId && !activeModels.find(m => m.modelId === selectedModelId) ? selectedModelId : ""}
+                  onChange={(e) => setSelectedModelId(e.target.value.trim() || null)}
+                  className="bg-background font-mono text-xs"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Find model IDs at{" "}
+                  <a 
+                    href="https://openrouter.ai/models" 
+                    target="_blank" 
+                    rel="noopener noreferrer"
+                    className="text-amber-500 hover:underline"
+                  >
+                    openrouter.ai/models
+                  </a>
+                </p>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="repeat-count" className="text-xs text-muted-foreground">
