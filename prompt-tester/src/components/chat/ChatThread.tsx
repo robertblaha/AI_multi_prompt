@@ -185,12 +185,17 @@ export function ChatThread() {
     );
   }
 
-  // Get last assistant messages for comparison
+  // Get last assistant messages for comparison (including stats)
   const lastAssistantMessages = threads.map((thread) => {
     const lastAssistant = [...thread.messages]
       .reverse()
       .find((m) => m.role === "assistant");
-    return { threadId: thread.id, modelName: thread.modelName, content: lastAssistant?.content || "" };
+    return {
+      threadId: thread.id,
+      modelName: thread.modelName,
+      content: lastAssistant?.content || "",
+      stats: thread.stats,
+    };
   });
 
   return (
@@ -323,8 +328,22 @@ export function ChatThread() {
                   key={msg.threadId}
                   className="p-4 rounded-lg border border-border bg-card"
                 >
-                  <div className="flex items-center justify-between mb-2">
-                    <Badge variant="outline">{msg.modelName}</Badge>
+                  <div className="flex flex-col gap-2 mb-3 pb-3 border-b border-border/50">
+                    <Badge variant="outline" className="w-fit">{msg.modelName}</Badge>
+                    <div className="flex flex-wrap items-center gap-3 text-xs text-muted-foreground">
+                      <div className="flex items-center gap-1">
+                        <Hash className="w-3 h-3" />
+                        <span>{msg.stats.inputTokens.toLocaleString()} in / {msg.stats.outputTokens.toLocaleString()} out</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Coins className="w-3 h-3" />
+                        <span>${msg.stats.cost.toFixed(4)}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <Zap className="w-3 h-3" />
+                        <span>{msg.stats.latencyMs > 0 ? `${(msg.stats.latencyMs / 1000).toFixed(1)}s` : "-"}</span>
+                      </div>
+                    </div>
                   </div>
                   <div className="prose prose-sm dark:prose-invert max-w-none">
                     <p className="whitespace-pre-wrap break-words text-foreground/90">
