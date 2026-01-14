@@ -304,13 +304,14 @@ export function useChat() {
           }
         }
 
-        // Send requests in parallel
-        const requests = Array.from({ length: repeatCount }, (_, i) =>
-          sendSingleChat(selectedModelId, messages, apiKey).then(
-            (result) => ({ success: true, result, index: i }),
-            (error) => ({ success: false, error, index: i })
-          )
-        );
+        // Send requests in parallel - each tracks its own latency
+        const requests = Array.from({ length: repeatCount }, (_, i) => {
+          const requestStartTime = Date.now();
+          return sendSingleChat(selectedModelId, messages, apiKey).then(
+            (result) => ({ success: true, result, index: i, latencyMs: Date.now() - requestStartTime }),
+            (error) => ({ success: false, error, index: i, latencyMs: Date.now() - requestStartTime })
+          );
+        });
 
         const results = await Promise.allSettled(requests);
 
@@ -320,7 +321,7 @@ export function useChat() {
           const modelId = threadModelIds[i];
           if (result.status === "fulfilled" && result.value.success) {
             const { content, usage } = result.value.result;
-            const latencyMs = Date.now() - startTime;
+            const latencyMs = result.value.latencyMs;
             const cost = calculateCost(modelId, usage.prompt_tokens, usage.completion_tokens);
             const state = useStore.getState();
             const currentThread = state.threads.find((t) => t.id === threadId);
@@ -423,13 +424,14 @@ export function useChat() {
           }
         }
 
-        // Send requests in parallel
-        const requests = allModelIds.map((modelId, i) =>
-          sendSingleChat(modelId, messages, apiKey).then(
-            (result) => ({ success: true, result, modelId }),
-            (error) => ({ success: false, error, modelId })
-          )
-        );
+        // Send requests in parallel - each tracks its own latency
+        const requests = allModelIds.map((modelId, i) => {
+          const requestStartTime = Date.now();
+          return sendSingleChat(modelId, messages, apiKey).then(
+            (result) => ({ success: true, result, modelId, latencyMs: Date.now() - requestStartTime }),
+            (error) => ({ success: false, error, modelId, latencyMs: Date.now() - requestStartTime })
+          );
+        });
 
         const results = await Promise.allSettled(requests);
 
@@ -439,7 +441,7 @@ export function useChat() {
           const modelId = threadModelIds[i];
           if (result.status === "fulfilled" && result.value.success) {
             const { content, usage } = result.value.result;
-            const latencyMs = Date.now() - startTime;
+            const latencyMs = result.value.latencyMs;
             const cost = calculateCost(modelId, usage.prompt_tokens, usage.completion_tokens);
             const state = useStore.getState();
             const currentThread = state.threads.find((t) => t.id === threadId);
